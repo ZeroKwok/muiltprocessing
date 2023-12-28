@@ -19,13 +19,15 @@
 # If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import time
 import zmq
+import time
 import argparse
 import threading
+import traceback
+import signal 
 
 class iothread:
-    def __init__(self):
+    def __init__(self, uid:bytes):
         self.thread = None
         self.publish = None
         self.interrupted = False
@@ -34,6 +36,9 @@ class iothread:
         self.zsub  = self.context.socket(zmq.SUB)
         self.zreq  = self.context.socket(zmq.REQ)
         self.zpush = self.context.socket(zmq.PUSH)
+        self.zsub.identity  = uid
+        self.zreq.identity  = uid
+        self.zpush.identity = uid  
 
     def run(self):
         self.interrupted = False
@@ -45,16 +50,20 @@ class iothread:
         
     def shutdown(self):
         self.interrupted = True
-        self.context.shutdown()
+        self.zsub.close()
+        self.zreq.close()
+        self.zpush.close()
+        self.context.term()
 
     def push(self, msg:bytes):
         if self.zpush:
             self.zpush.send(msg)
             
-    def subscribe(self, subject:str):
+    def subscribe(self, subject:str, callback):
         if self.zsub:
+            self.publish = callback
             self.zsub.setsockopt_string(zmq.SUBSCRIBE, subject)
-            
+
     def request(self, msg:bytes):
         if not self.zreq:
             raise RuntimeError()
@@ -67,55 +76,66 @@ class iothread:
             poll.register(self.zsub, zmq.POLLIN)
             
             while not self.interrupted:
-                for socket, event in poll.poll(10):
+                for socket, event in poll.poll(50):
                     msg = socket.recv()
                     if socket == self.zsub and self.publish:
                         self.publish(msg)
         except Exception as e:
-            print ("exception:", e)
+            if not self.interrupted:
+                print ("Exception:", e)
+
+# 阻止因为跟父进程共用一个终端, 并且终端触发SIGBREAK信号时, 被一起中断的情况
+def handle_sigbreak(sig, frame):  
+    print('SIGBREAK signal!') 
+    signal.signal(signal.SIGBREAK, handle_sigbreak) 
+signal.signal(signal.SIGBREAK, handle_sigbreak) 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--uid', action='store', required=True)
-    parser.add_argument('--req', action='store', required=True)
-    parser.add_argument('--sub', action='store', required=True)
-    parser.add_argument('--push', action='store', required=True)
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--uid', action='store', required=True)
+        parser.add_argument('--req', action='store', required=True)
+        parser.add_argument('--sub', action='store', required=True)
+        parser.add_argument('--push', action='store', required=True)
 
-    # args = parser.parse_args('--uid "index_0" --req "tcp://localhost:5557" --sub "tcp://localhost:5558" --push "tcp://localhost:5559"'.split())
-    args = parser.parse_args()
+        # args = parser.parse_args('--uid "62a0d894-0625-4922-a154-6e48624733f8" --req "tcp://localhost:5555" --sub "tcp://localhost:5556" --push "tcp://localhost:5557"'.split())
+        args = parser.parse_args()
 
-    args.uid = args.uid.strip(' \'"')
-    args.req = args.req.strip(' \'"')
-    args.sub = args.sub.strip(' \'"')
-    args.push = args.push.strip(' \'"')
+        args.uid = args.uid.strip(' \'"')
+        args.req = args.req.strip(' \'"')
+        args.sub = args.sub.strip(' \'"')
+        args.push = args.push.strip(' \'"')
 
-    keepgoing = True
-    def publish(msg:bytes):
-        print(f'Publish: ', msg.decode())
-        if msg == b'stop':
-            keepgoing = False
+        keepgoing = True
+        def publish(msg:bytes):
+            global keepgoing
+            msg = msg.decode()
+            if msg == 'STOP' and keepgoing:
+                print('STOP: stopping...')
+                keepgoing = False
 
-    io = iothread()
-    io.zreq.connect(args.req) 
-    io.zsub.connect(args.sub) 
-    io.zpush.connect(args.push)
-    io.zsub.identity = args.uid.encode()
-    io.zreq.identity = args.uid.encode()
-    io.zpush.identity = args.uid.encode()
-    io.run()
-    io.publish = publish
-    io.push('ready'.encode())
-    
-    index = 0
-    while keepgoing:
-        index += 1
-        io.push(f'PUSH: inxex {index}'.encode())
+        io = iothread(args.uid.encode())
+        io.zreq.connect(args.req) 
+        io.zsub.connect(args.sub) 
+        io.zpush.connect(args.push)
+        io.subscribe('', publish)
+        io.run()
+        io.push(f'READY'.encode())
         
-        time.sleep(1)
-        if index % 4 == 0:
-            repsone = io.request('call echo: Hello'.encode())
-            print(f'Repsone: ', repsone.decode())
+        index = 0
+        while keepgoing:
+            index += 1
+            io.push(f'inxex {index}'.encode())
             
-    io.shutdown()
-    io.join()
-    print('Finished!')
+            time.sleep(2)
+            if index % 4 == 0:
+                repsone = io.request(f'CALL ECHO: Hello'.encode())
+                print(f'REPSONE:', repsone.decode())
+                
+        io.push(f'STOP'.encode())
+        io.shutdown()
+        io.join()
+        
+        print('FINISHED!')
+    except Exception as e:
+        traceback.print_exc()

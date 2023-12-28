@@ -42,7 +42,7 @@ public:
 
         std::cout << "REQUEST: " << request.to_string() << std::endl;
 
-        zmq::message_t response("NOT YET REALIZED");
+        zmq::message_t response(std::string("NOT YET REALIZED"));
         socket.send(response);
     }
 
@@ -89,15 +89,21 @@ int main()
 
     std::error_code ecode;
     subprocesses children;
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 8; ++i)
         children.launch(cmd, boost::uuids::to_string(boost::uuids::random_generator()()), ecode);
 
     while (gFlags == kFlagRunning)
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    {
+        children.publish(zmq::message_t(std::string("TICKTACK")));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
 
-    children.publish(zmq::message_t("stop"));
-    children.shutdown();
-    children.wait_for();
+    // 等待所有子进程结束并循环发送终止信号
+    while (!children.wait_children(1000))
+        children.publish(zmq::message_t(std::string("STOP")));
+
+    children.shutdown();                      // 尝试关闭所有活动
+    children.join();                          // 等待所有活动结束
 
     ::system("pause");
 }

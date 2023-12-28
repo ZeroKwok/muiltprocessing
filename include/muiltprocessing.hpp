@@ -94,17 +94,17 @@ public:
         if (m_iocontext)
         {
             m_intrrupted = true;
-            m_iocontext->shutdown();
-            m_iothread->interrupt();
-
             m_pull.reset();
             m_publish.reset();
             m_response.reset();
+            m_iocontext->close();
+            m_iothread->interrupt();
+
             m_iocontext.reset();
         }
     }
 
-    bool wait_for(int milliseconds = -1)
+    bool wait_children(int milliseconds = -1)
     {
         auto timeout = std::chrono::steady_clock::now() + 
                        std::chrono::milliseconds(milliseconds);
@@ -117,11 +117,7 @@ public:
             }
 
             if (size == 0)
-            {
-                if (m_iothread->joinable())
-                    m_iothread->join();
                 return true;
-            }
 
             // 如果I/O线程已经先一步退出, 那么这里应该主动轮询所有子进程状态
             if (!m_iothread->joinable() || m_iothread->try_join_for(boost::chrono::milliseconds(0)))
@@ -133,6 +129,15 @@ public:
         }
 
         return false;
+    }
+
+    void join()
+    {
+        if (wait_children())
+        {
+            if (m_iothread->joinable())
+                m_iothread->join();
+        }
     }
 
     bool launch(
@@ -216,7 +221,7 @@ protected:
         }
         catch (const zmq::error_t& e)
         {
-            if (e.num() == ETERM)
+            if (e.num() == ETERM || m_intrrupted)
                 return;
 
             util::output_debug_string("*** Warning ***");
@@ -237,7 +242,7 @@ protected:
             for (auto it = m_children.begin(); it != m_children.end();)
             {
                 std::error_code ecode;
-                if ((*it)->process->wait_for(std::chrono::milliseconds(0), ecode))
+                if (!(*it)->process->running(ecode))
                 {
                     finished.insert(*it);
                     it = m_children.erase(it);
