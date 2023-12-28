@@ -91,9 +91,17 @@ public:
 
     void shutdown()
     {
-        m_intrrupted = true;
-        m_iocontext->shutdown();
-        m_iothread->interrupt();
+        if (m_iocontext)
+        {
+            m_intrrupted = true;
+            m_iocontext->shutdown();
+            m_iothread->interrupt();
+
+            m_pull.reset();
+            m_publish.reset();
+            m_response.reset();
+            m_iocontext.reset();
+        }
     }
 
     bool wait_for(int milliseconds = -1)
@@ -110,9 +118,14 @@ public:
 
             if (size == 0)
             {
-                m_iothread->join();
+                if (m_iothread->joinable())
+                    m_iothread->join();
                 return true;
             }
+
+            // 如果I/O线程已经先一步退出, 那么这里应该主动轮询所有子进程状态
+            if (!m_iothread->joinable() || m_iothread->try_join_for(boost::chrono::milliseconds(0)))
+                poll_child();
 
             if (milliseconds != -1 && timeout < std::chrono::steady_clock::now())
                 break;
@@ -196,26 +209,7 @@ protected:
                 auto now = std::chrono::steady_clock::now();
                 if (now - start > interval)
                 {
-                    std::set<child_ptr> finished;
-                    {
-                        std::unique_lock<std::mutex> lock(m_mutex);
-                        for (auto it = m_children.begin(); it != m_children.end();)
-                        {
-                            std::error_code ecode;
-                            if ((*it)->process->wait_for(std::chrono::milliseconds(0), ecode))
-                            {
-                                finished.insert(*it);
-                                it = m_children.erase(it);
-                            }
-                            else
-                            {
-                                ++it;
-                            }
-                        }
-                    }
-
-                    for (auto const& child : finished)
-                        handle_finished(child);
+                    poll_child();
                     start = now;
                 }
             }
@@ -233,6 +227,30 @@ protected:
             util::output_debug_string("*** Warning ***");
             util::output_debug_string("iothread() interrupted, exception: %s", e.what());
         }
+    }
+
+    void poll_child()
+    {
+        std::set<child_ptr> finished;
+        {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            for (auto it = m_children.begin(); it != m_children.end();)
+            {
+                std::error_code ecode;
+                if ((*it)->process->wait_for(std::chrono::milliseconds(0), ecode))
+                {
+                    finished.insert(*it);
+                    it = m_children.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
+        for (auto const& child : finished)
+            handle_finished(child);
     }
 
     std::string bind(zmq::socket_t& socket, uint16_t port)
