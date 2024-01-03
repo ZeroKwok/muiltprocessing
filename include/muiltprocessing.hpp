@@ -104,7 +104,7 @@ public:
         }
     }
 
-    bool wait_children(int milliseconds = -1)
+    bool wait_children(int milliseconds = -1, const std::function<void()>& ticker = {})
     {
         auto timeout = std::chrono::steady_clock::now() + 
                        std::chrono::milliseconds(milliseconds);
@@ -126,6 +126,9 @@ public:
             if (milliseconds != -1 && timeout < std::chrono::steady_clock::now())
                 break;
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+            if (ticker)
+                ticker();
         }
 
         return false;
@@ -266,6 +269,7 @@ protected:
             try
             {
                 socket.bind(address);
+                socket.setsockopt(ZMQ_LINGER, int(500));
                 return address;
             }
             catch (zmq::error_t e)

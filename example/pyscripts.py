@@ -27,7 +27,8 @@ import traceback
 import signal 
 
 class iothread:
-    def __init__(self, uid:bytes):
+    def __init__(self, uid:str):
+        self.uid = uid
         self.thread = None
         self.publish = None
         self.interrupted = False
@@ -36,9 +37,15 @@ class iothread:
         self.zsub  = self.context.socket(zmq.SUB)
         self.zreq  = self.context.socket(zmq.REQ)
         self.zpush = self.context.socket(zmq.PUSH)
-        self.zsub.identity  = uid
-        self.zreq.identity  = uid
-        self.zpush.identity = uid  
+
+        def InitSocket(socket, uid):
+            socket.identity = uid
+            socket.setsockopt(zmq.LINGER, 500)
+
+        uid = uid.encode()
+        InitSocket(self.zsub, uid)
+        InitSocket(self.zreq, uid)
+        InitSocket(self.zpush, uid) 
 
     def run(self):
         self.interrupted = False
@@ -100,11 +107,9 @@ if __name__ == "__main__":
 
         # args = parser.parse_args('--uid "62a0d894-0625-4922-a154-6e48624733f8" --req "tcp://localhost:5555" --sub "tcp://localhost:5556" --push "tcp://localhost:5557"'.split())
         args = parser.parse_args()
-
-        args.uid = args.uid.strip(' \'"')
-        args.req = args.req.strip(' \'"')
-        args.sub = args.sub.strip(' \'"')
-        args.push = args.push.strip(' \'"')
+        for key in args.__dict__:
+            if type(args.__dict__[key]) == str:
+                args.__dict__[key] = args.__dict__[key].strip(' \'"')
 
         keepgoing = True
         def publish(msg:bytes):
@@ -114,7 +119,7 @@ if __name__ == "__main__":
                 print('STOP: stopping...')
                 keepgoing = False
 
-        io = iothread(args.uid.encode())
+        io = iothread(args.uid)
         io.zreq.connect(args.req) 
         io.zsub.connect(args.sub) 
         io.zpush.connect(args.push)
