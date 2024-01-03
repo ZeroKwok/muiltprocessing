@@ -17,24 +17,8 @@
 
 cmake_minimum_required(VERSION 3.10)
 
-project(muiltprocessing VERSION 0.1.2)
-option(MUILTPROCESSING_BUILD_EXAMPLE "Compile the example" ON)
-
-find_package(cppzmq CONFIG REQUIRED)
-
-add_library(${PROJECT_NAME} INTERFACE)
-set_target_properties(${PROJECT_NAME} PROPERTIES
+add_library(muiltprocessing INTERFACE)
+set_target_properties(muiltprocessing PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/include
     INTERFACE_LINK_LIBRARIES cppzmq)
 set(MUILTPROCESSING_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include PARENT_SCOPE)
-
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake DESTINATION ./)
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include DESTINATION ./)
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/example DESTINATION ./)
-
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE DESTINATION ./ OPTIONAL)
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION ./ OPTIONAL)
-
-if(MUILTPROCESSING_BUILD_EXAMPLE)
-    add_subdirectory(example)
-endif()
