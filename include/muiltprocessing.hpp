@@ -32,6 +32,12 @@
 
 #include "platform/platform_util.h"
 
+#if defined(_MSC_VER)
+#   pragma warning( push )
+#   pragma warning( disable : 4996 )
+#   pragma warning( disable : 4834 )
+#endif
+
 class muiltprocessing
 {
 protected:
@@ -282,5 +288,9 @@ protected:
         return {};
     }
 };
+
+#if defined(_MSC_VER)
+#   pragma warning( pop )
+#endif
 
 #endif // muiltprocessing_h__
