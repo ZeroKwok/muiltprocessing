@@ -149,8 +149,9 @@ public:
         }
     }
 
+    template<typename StdTString>
     bool launch(
-        const std::string& cmd,
+        const StdTString& cmd,
         const std::string& uid,
         std::error_code& error)
     {
