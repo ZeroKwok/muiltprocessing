@@ -163,19 +163,26 @@ public:
         boost::replace_all(command, "{sub}",  m_addresses[1]);
         boost::replace_all(command, "{push}", m_addresses[2]);
 
+        try
+        {
 #if IS_DEBUG
-        auto show = boost::process::windows::show_normal;
+            auto show = boost::process::windows::show_normal;
 #else
-        auto show = boost::process::windows::hide;
+            auto show = boost::process::windows::hide;
 #endif
-        auto child = std::make_shared<muiltprocessing::child>(
-            muiltprocessing::child{
-                uid,
-                std::make_shared<boost::process::child>(command, show)
-            });
+            auto child = std::make_shared<muiltprocessing::child>(
+                muiltprocessing::child{
+                    uid,
+                    std::make_shared<boost::process::child>(command, show)
+                });
 
-        std::unique_lock<std::mutex> lock(m_mutex);
-        m_children.insert(child);
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_children.insert(child);
+        }
+        catch (const boost::process::process_error& e)
+        {
+            error = e.code();
+        }
 
         return !error;
     }
