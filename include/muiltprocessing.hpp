@@ -42,8 +42,9 @@ class muiltprocessing
 {
 protected:
     struct child {
-        std::string uid;
-        std::shared_ptr<boost::process::child> process;
+        std::string uid;                                //!< 子进程唯一id
+        std::chrono::steady_clock::time_point start;    //!< 子进程开始运行的时间
+        std::shared_ptr<boost::process::child> process; //!< 子进程对象
     };
     typedef std::shared_ptr<child> child_ptr;
 
@@ -173,6 +174,7 @@ public:
             auto child = std::make_shared<muiltprocessing::child>(
                 muiltprocessing::child{
                     uid,
+                    std::chrono::steady_clock::now(),
                     std::make_shared<boost::process::child>(command, show)
                 });
 
