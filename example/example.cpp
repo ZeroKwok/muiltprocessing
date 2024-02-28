@@ -55,7 +55,9 @@ public:
     }
 
     virtual void handle_finished(child_ptr child) {
-        std::cout << "FINISHED: " << child->uid << std::endl;
+        using namespace std::chrono;
+        auto elapse = duration_cast<seconds>(steady_clock::now() - child->start).count();
+        std::cout << "FINISHED: " << child->uid << ", Elapse: " << elapse << std::endl;
     }
 };
 
@@ -80,12 +82,20 @@ int main()
 {
     signal(SIGBREAK, handle_signal);
 
+    std::cout << "Press [CTRL + PAUSE/BREAK] to interrupt the operation!" << std::endl;
+
     auto root = util::path_find_parent(__FILE__);
     auto file = util::path_append(root, "pyscripts.py");
 
+#if 0
     auto cmd  = boost::str(boost::format(
         R"(python.exe "%s" --uid "{uid}" --req "{req}" --sub "{sub}" --push "{push}")")
-        % util::conv::easy::_2utf8(file));
+        % file);
+#else
+    auto cmd = boost::str(boost::wformat(
+        LR"(L:\中文路径٩( 'ω' )و get！\python36\python.exe "%s" --uid "{uid}" --req "{req}" --sub "{sub}" --push "{push}")")
+        % util::conv::easy::_2wstr(file));
+#endif
 
     std::error_code ecode;
     subprocesses children;
