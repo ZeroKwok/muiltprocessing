@@ -48,6 +48,42 @@ protected:
     };
     typedef std::shared_ptr<child> child_ptr;
 
+    friend class poller;
+    class poller
+    {
+        zmq::pollitem_t  _items[2] = {};
+        muiltprocessing* _ptr = nullptr;
+
+    public:
+        poller(muiltprocessing* ptr) : _ptr(ptr)
+        {
+            _items[0] = { *_ptr->m_response, 0, ZMQ_POLLIN, 0 };
+            _items[1] = { *_ptr->m_pull, 0, ZMQ_POLLIN, 0 };
+        }
+
+        bool poll()
+        {
+            try
+            {
+                zmq::poll(_items, 2, std::chrono::milliseconds(10));
+                if (_items[0].revents & ZMQ_POLLIN)
+                    _ptr->handle_request(*_ptr->m_response);
+                if (_items[1].revents & ZMQ_POLLIN)
+                    _ptr->handle_push(*_ptr->m_pull);
+            }
+            catch (const zmq::error_t& e)
+            {
+                if (e.num() != ETERM && !_ptr->m_intrrupted)
+                {
+                    util::output_debug_string("*** Warning ***");
+                    util::output_debug_string("poller.poll() interrupted, error_t: 0x%08x, %s", e.num(), e.what());
+                }
+                return false;
+            }
+            return true;
+        }
+    };
+
     unsigned short                  m_preferredPort;
     std::mutex                      m_mutex;
     std::atomic_bool                m_intrrupted;
@@ -58,6 +94,8 @@ protected:
     std::shared_ptr<zmq::socket_t>  m_response;
     std::shared_ptr<zmq::context_t> m_iocontext;
     std::shared_ptr<boost::thread>  m_iothread;
+    std::shared_ptr<poller>         m_poller;
+
 public:
 
     explicit muiltprocessing(uint16_t preferredPort = 5555)
@@ -75,6 +113,7 @@ public:
             m_addresses[0] = bind(*m_response, m_preferredPort);
             m_addresses[1] = bind(*m_publish, m_preferredPort + 1);
             m_addresses[2] = bind(*m_pull, m_preferredPort + 2);
+            m_poller = std::make_shared<poller>(this);
 
             m_intrrupted = false;
             m_iothread = std::make_shared<boost::thread>([=] {
@@ -101,12 +140,12 @@ public:
         if (m_iocontext)
         {
             m_intrrupted = true;
+            m_iothread->interrupt();
+
             m_pull.reset();
             m_publish.reset();
             m_response.reset();
             m_iocontext->close();
-            m_iothread->interrupt();
-
             m_iocontext.reset();
         }
     }
@@ -210,41 +249,25 @@ protected:
     {}
 
 protected:
+
     void iothread()
     {
         try
         {
-            zmq::pollitem_t items[] = {
-                { *m_response,  0, ZMQ_POLLIN, 0 },
-                { *m_pull, 0, ZMQ_POLLIN, 0 }
-            };
-
             auto start    = std::chrono::steady_clock::now();
             auto interval = std::chrono::milliseconds(500);
 
             while (!m_intrrupted)
             {
-                zmq::poll(items, 2, std::chrono::milliseconds(10));
-                if (items[0].revents & ZMQ_POLLIN)
-                    handle_request(*m_response);
-                if (items[1].revents & ZMQ_POLLIN)
-                    handle_push(*m_pull);
+                if (!m_poller->poll())
+                    break;
 
                 auto now = std::chrono::steady_clock::now();
-                if (now - start > interval)
-                {
+                if (now - start > interval) {
                     poll_child();
                     start = now;
                 }
             }
-        }
-        catch (const zmq::error_t& e)
-        {
-            if (e.num() == ETERM || m_intrrupted)
-                return;
-
-            util::output_debug_string("*** Warning ***");
-            util::output_debug_string("iothread() interrupted, error_t: 0x%08x, %s", e.num(), e.what());
         }
         catch (const std::exception& e)
         {
@@ -263,6 +286,9 @@ protected:
                 std::error_code ecode;
                 if (!(*it)->process->running(ecode))
                 {
+                    // 再处理一次消息, 防止子进程还有消息没有被处理
+                    // 确保 handle_finished() 是这个子程序最后响应的事件
+                    m_poller->poll();
                     finished.insert(*it);
                     it = m_children.erase(it);
                 }
