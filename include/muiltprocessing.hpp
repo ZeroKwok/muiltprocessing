@@ -61,15 +61,17 @@ protected:
             _items[1] = { *_ptr->m_pull, 0, ZMQ_POLLIN, 0 };
         }
 
-        bool poll()
+        bool poll(int msec = 10)
         {
             try
             {
-                zmq::poll(_items, 2, std::chrono::milliseconds(10));
-                if (_items[0].revents & ZMQ_POLLIN)
-                    _ptr->handle_request(*_ptr->m_response);
-                if (_items[1].revents & ZMQ_POLLIN)
-                    _ptr->handle_push(*_ptr->m_pull);
+                while(zmq::poll(_items, 2, std::chrono::milliseconds(msec)) > 0)
+                {
+                    if (_items[0].revents & ZMQ_POLLIN)
+                        _ptr->handle_request(*_ptr->m_response);
+                    if (_items[1].revents & ZMQ_POLLIN)
+                        _ptr->handle_push(*_ptr->m_pull);
+                }
             }
             catch (const zmq::error_t& e)
             {
@@ -286,9 +288,8 @@ protected:
                 std::error_code ecode;
                 if (!(*it)->process->running(ecode))
                 {
-                    // 再处理一次消息, 防止子进程还有消息没有被处理
-                    // 确保 handle_finished() 是这个子程序最后响应的事件
-                    m_poller->poll();
+                    // 再次轮询处理子进程的消息, 确保handle_finished()是最后响应的事件.
+                    m_poller->poll(10);
                     finished.insert(*it);
                     it = m_children.erase(it);
                 }
