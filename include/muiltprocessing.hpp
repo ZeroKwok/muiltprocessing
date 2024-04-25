@@ -40,13 +40,15 @@
 
 class muiltprocessing
 {
-protected:
+public:
     struct child {
         std::string uid;                                //!< 子进程唯一id
         std::chrono::steady_clock::time_point start;    //!< 子进程开始运行的时间
         std::shared_ptr<boost::process::child> process; //!< 子进程对象
     };
     typedef std::shared_ptr<child> child_ptr;
+
+protected:
 
     friend class poller;
     class poller
@@ -192,7 +194,7 @@ public:
     }
 
     template<typename StdTString>
-    bool launch(
+    child_ptr launch(
         const StdTString& cmd,
         const std::string& uid,
         std::error_code& error)
@@ -221,13 +223,15 @@ public:
 
             std::unique_lock<std::mutex> lock(m_mutex);
             m_children.insert(child);
+
+            return child;
         }
         catch (const boost::process::process_error& e)
         {
             error = e.code();
         }
 
-        return !error;
+        return {};
     }
 
     void publish(zmq::message_t& msg)
@@ -254,6 +258,7 @@ protected:
 
     void iothread()
     {
+    __RESUME:
         try
         {
             auto start    = std::chrono::steady_clock::now();
@@ -270,6 +275,16 @@ protected:
                     start = now;
                 }
             }
+        }
+        catch (const std::bad_alloc&)
+        {
+            util::output_debug_string("*** Warning ***");
+            util::output_debug_string("iothread() throws a bad allocation and try to continue execution.");
+
+            // 这里出现 bad_alloc 主要是因为进程在其他地方耗尽了内存, 波及到了这里。
+            // 为了增强程序的健壮性，我们将在一段时间后继续尝试执行。
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            goto __RESUME;
         }
         catch (const std::exception& e)
         {
