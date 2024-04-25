@@ -1,5 +1,5 @@
 // This file is part of the muiltprocessing distribution.
-// Copyright (c) 2023 zero.kwok@foxmail.com
+// Copyright (c) 2023-2024 Zero <zero.kwok@foxmail.com>
 // 
 // This is free software; you can redistribute it and/or modify it
 // under the terms of the GNU Lesser General Public License as
@@ -209,7 +209,7 @@ public:
 
         try
         {
-#if IS_DEBUG
+#if defined(MUILTPROCESSING_SHOW_WINDOWS)
             auto show = boost::process::windows::show_normal;
 #else
             auto show = boost::process::windows::hide;
