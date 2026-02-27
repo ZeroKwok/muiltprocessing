@@ -23,14 +23,16 @@
 #include <vector>
 #include <chrono>
 #include <memory>
-#include <zmq.hpp>
 #include <boost/format.hpp>
 #include <boost/thread.hpp>
 #include <boost/process.hpp>
 #include <boost/process/windows.hpp>
 #include <boost/algorithm/string.hpp>
+#include <zmq.hpp>
 
-#include "platform/platform_util.h"
+#ifdef UTILITY_VERSION
+    #include "platform/platform_util.h"
+#endif
 
 #if defined(_MSC_VER)
 #   pragma warning( push )
@@ -79,8 +81,10 @@ protected:
             {
                 if (e.num() != ETERM && !_ptr->m_intrrupted)
                 {
+#ifdef UTILITY_VERSION
                     util::output_debug_string("*** Warning ***");
                     util::output_debug_string("poller.poll() interrupted, error_t: 0x%08x, %s", e.num(), e.what());
+#endif
                 }
                 return false;
             }
@@ -126,8 +130,10 @@ public:
         }
         catch (const std::exception& e)
         {
+#ifdef UTILITY_VERSION
             util::output_debug_string("*** Warning ***");
             util::output_debug_string("muiltprocessing() failed, error: %s", e.what());
+#endif
         }
     }
 
@@ -278,8 +284,10 @@ protected:
         }
         catch (const std::bad_alloc&)
         {
+#ifdef UTILITY_VERSION
             util::output_debug_string("*** Warning ***");
             util::output_debug_string("iothread() throws a bad allocation and try to continue execution.");
+#endif
 
             // 这里出现 bad_alloc 主要是因为进程在其他地方耗尽了内存, 波及到了这里。
             // 为了增强程序的健壮性，我们将在一段时间后继续尝试执行。
@@ -288,8 +296,10 @@ protected:
         }
         catch (const std::exception& e)
         {
+#ifdef UTILITY_VERSION
             util::output_debug_string("*** Warning ***");
             util::output_debug_string("iothread() interrupted, exception: %s", e.what());
+#endif
         }
     }
 
