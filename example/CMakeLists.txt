@@ -27,18 +27,8 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-set(Boost_USE_STATIC_LIBS ON)
-add_compile_definitions(BOOST_LIB_DIAGNOSTIC=1)
-add_compile_definitions(AUTO_LINK_LIB_DIAGNOSTIC=1)
-
-find_package(utility REQUIRED)
-find_package(Boost REQUIRED thread date_time filesystem)
-
-include_directories(${utility_INCLUDE_DIRS})
-link_directories   (${utility_LIBRARY_DIRS})
-include_directories(${Boost_INCLUDE_DIRS})
-link_directories   (${Boost_LIBRARY_DIRS})
-
+find_package(Boost REQUIRED)
 add_executable(${PROJECT_NAME} example.cpp)
-target_compile_definitions(${PROJECT_NAME} PRIVATE UTILITY_SUPPORT_BOOST)
-target_link_libraries(${PROJECT_NAME} muiltprocessing)
+target_link_libraries(${PROJECT_NAME} 
+    muiltprocessing cppzmq 
+    Boost::boost Boost::thread Boost::filesystem)

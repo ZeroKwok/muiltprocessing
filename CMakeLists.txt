@@ -20,20 +20,28 @@ cmake_minimum_required(VERSION 3.10)
 project(muiltprocessing VERSION 0.1.2.0)
 option(MUILTPROCESSING_BUILD_EXAMPLE "Compile the example" ON)
 
-find_package(cppzmq CONFIG REQUIRED)
+find_package(cppzmq REQUIRED)
+
+# set(Boost_USE_STATIC_LIBS ON)
+find_package(Boost REQUIRED)
+
+if (NOT BOOST_ALL_NO_LIB)
+    include_directories(${Boost_INCLUDE_DIRS})
+    link_directories   (${Boost_LIBRARY_DIRS})
+    add_compile_definitions(BOOST_LIB_DIAGNOSTIC=1)
+endif()
 
 add_library(${PROJECT_NAME} INTERFACE)
 
 target_include_directories(${PROJECT_NAME} INTERFACE 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>)
-
-set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_LINK_LIBRARIES cppzmq)
-set(MUILTPROCESSING_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include PARENT_SCOPE)
+set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_LINK_LIBRARIES 
+    cppzmq Boost::boost Boost::thread)
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-    ${CMAKE_INSTALL_PREFIX}/cmake/${PROJECT_NAME}ConfigVersion.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY SameMinorVersion)
 
@@ -49,10 +57,12 @@ install(EXPORT ${PROJECT_NAME}Config DESTINATION cmake)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include DESTINATION ./)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/example DESTINATION ./)
 
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake DESTINATION cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE DESTINATION ./ OPTIONAL)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION ./ OPTIONAL)
 
 if (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
+    set(MUILTPROCESSING_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include PARENT_SCOPE)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/build/templates.in" 
                    "${CMAKE_CURRENT_SOURCE_DIR}/build/build_dynamic_x86_vc14.2.py")
 endif()
