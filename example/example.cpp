@@ -15,18 +15,13 @@
 // License along with this software; 
 // If not, see <http://www.gnu.org/licenses/>.
 
-#include "muiltprocessing.hpp"
-
-#include "common/time_util.h"
-#include "string/string_util.h"
-#include "string/string_conv_easy.hpp"
-#include "filesystem/path_util.h"
-
 #include <signal.h>
 #include <iostream>
+#include <filesystem>
 #include <boost/format.hpp>
 #include <boost/uuid/uuid_io.hpp>  
 #include <boost/uuid/uuid_generators.hpp>
+#include "muiltprocessing.hpp"
 
 class subprocesses : public muiltprocessing
 {
@@ -83,11 +78,10 @@ int main()
     signal(SIGBREAK, handle_signal);
 
     std::cout << "Press [CTRL + PAUSE/BREAK] to interrupt the operation!" << std::endl;
+    auto root = std::filesystem::path(__FILE__).parent_path();
+    auto file = root / "pyscripts.py";
 
-    auto root = util::path_find_parent(__FILE__);
-    auto file = util::path_append(root, "pyscripts.py");
-
-#if 0
+#if 1
     auto cmd  = boost::str(boost::format(
         R"(python.exe "%s" --uid "{uid}" --req "{req}" --sub "{sub}" --push "{push}")")
         % file);
