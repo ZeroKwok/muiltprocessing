@@ -28,7 +28,7 @@ if(MSVC)
 endif()
 
 find_package(Boost REQUIRED)
-add_executable(${PROJECT_NAME} example.cpp)
+add_executable(${PROJECT_NAME} master.cpp)
 target_link_libraries(${PROJECT_NAME} 
     muiltprocessing cppzmq 
     Boost::boost Boost::thread Boost::filesystem)

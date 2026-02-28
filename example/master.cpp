@@ -79,7 +79,7 @@ int main()
 
     std::cout << "Press [CTRL + PAUSE/BREAK] to interrupt the operation!" << std::endl;
     auto root = std::filesystem::path(__FILE__).parent_path();
-    auto file = root / "pyscripts.py";
+    auto file = root / "worker.py";
 
 #if 1
     auto cmd  = boost::str(boost::format(
