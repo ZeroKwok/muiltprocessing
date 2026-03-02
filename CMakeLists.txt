@@ -17,7 +17,7 @@
 
 cmake_minimum_required(VERSION 3.10)
 
-project(muiltprocessing VERSION 0.1.2.0)
+project(muiltprocessing VERSION 0.1.3.0)
 option(MUILTPROCESSING_BUILD_EXAMPLE "Compile the example" ON)
 
 find_package(cppzmq REQUIRED)

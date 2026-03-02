@@ -3,7 +3,7 @@ from conan.tools.cmake import CMakeToolchain, CMakeDeps, cmake_layout
 
 class MarkdownEditorConan(ConanFile):
     name = "muiltprocessing"
-    version = "0.1.2"
+    version = "0.1.3"
     settings = "os", "compiler", "build_type", "arch"
     
     def requirements(self):
